@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, ApiResponse } from '@/services/api';
+import { api, type ApiResponse } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
+import type { Quotation } from '@/types';
 
 interface QuotationsResponse {
   data: any[];
@@ -30,10 +31,10 @@ export function useQuotations(status?: string, page = 1, pageSize = 20) {
 }
 
 export function useQuotationDetail(id: string) {
-  return useQuery<ApiResponse<any>>({
+  return useQuery<Quotation>({
     queryKey: ['quotation', id],
     queryFn: async () => {
-      const response = await api.get<ApiResponse<any>>(`/quotations/${id}`);
+      const response = await api.get<ApiResponse<Quotation>>(`/quotations/${id}`);
       return response.data;
     },
     enabled: !!id,

@@ -121,6 +121,7 @@ export interface Accessory extends ProductBase {
 }
 
 export interface ApplianceInput {
+  applianceId?: string;
   applianceName: string;
   quantity: number;
   powerRating: number;
@@ -128,6 +129,17 @@ export interface ApplianceInput {
   dailyHours: number;
   peakHours?: number;
   isEssential: boolean;
+}
+
+export interface ApplianceCatalogueItem {
+  id: string;
+  category: string;
+  make: string;
+  model: string;
+  wattage: number;
+  startingSurgeMultiplier?: number;
+  defaultHoursPerDay?: number;
+  notes?: string;
 }
 
 export interface ElectricalLoad {
@@ -195,4 +207,54 @@ export interface Notification {
   message: string;
   isRead: boolean;
   createdAt: string;
+}
+
+export interface RecommendedProduct {
+  productId: string;
+  itemType: 'PANEL' | 'BATTERY' | 'INVERTER' | 'ACCESSORY' | 'LABOUR' | 'INSTALLATION';
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  category?: string;
+  unit?: string;
+  specs?: Record<string, unknown>;
+}
+
+export interface SystemRecommendation {
+  load: {
+    id: string;
+    name: string;
+    propertyType: string;
+    totalConnectedLoad: number;
+    peakLoad: number;
+    dailyConsumption: number;
+    surgeRequirements: number;
+  };
+  sizing: {
+    battery: {
+      requiredCapacityKwh: number;
+      numberOfBatteries: number;
+      requiredBankVoltage: number;
+    };
+    solar: {
+      totalRequiredCapacityKw: number;
+      numberOfPanels: number;
+      roofAreaNeeded: number;
+      dailyProduction: number;
+    };
+    inverter: {
+      totalInverterCapacity: number;
+      hybridRecommended: boolean;
+      multipleInvertersNeeded: boolean;
+    };
+  };
+  products: {
+    panels: RecommendedProduct[];
+    batteries: RecommendedProduct[];
+    inverters: RecommendedProduct[];
+    accessories: RecommendedProduct[];
+  };
+  totalEquipmentCost: number;
+  notes: string[];
 }

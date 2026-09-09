@@ -21,18 +21,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Trash2, Calculator, Zap, RefreshCw, FileText } from 'lucide-react';
-
-interface ApplianceInput {
-  id: string;
-  applianceName: string;
-  quantity: number;
-  powerRating: number;
-  startingSurge?: number;
-  dailyHours: number;
-  peakHours?: number;
-  isEssential: boolean;
-}
+import { Plus, Calculator, Zap, RefreshCw, FileText, Eye } from 'lucide-react';
+import { ApplianceBuilder, type ApplianceRow } from '@/features/calculations/ApplianceBuilder';
+import { toast } from '@/hooks/use-toast';
 
 export default function CalculationsPage() {
   useAuth();
@@ -47,37 +38,24 @@ export default function CalculationsPage() {
     propertyType: 'HOUSE' as const,
     appliances: [
       { id: '1', applianceName: '', quantity: 1, powerRating: 0, dailyHours: 4, isEssential: true },
-    ] as ApplianceInput[],
+    ] as ApplianceRow[],
   });
-
-  const addAppliance = () => {
-    setFormData({
-      ...formData,
-      appliances: [
-        ...formData.appliances,
-        { id: Math.random().toString(36).substr(2, 9), applianceName: '', quantity: 1, powerRating: 0, dailyHours: 4, isEssential: true },
-      ],
-    });
-  };
-
-  const removeAppliance = (id: string) => {
-    setFormData({
-      ...formData,
-      appliances: formData.appliances.filter((a) => a.id !== id),
-    });
-  };
-
-  const updateAppliance = (id: string, field: keyof ApplianceInput, value: any) => {
-    setFormData({
-      ...formData,
-      appliances: formData.appliances.map((a) =>
-        a.id === id ? { ...a, [field]: value } : a
-      ),
-    });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const hasInvalid = formData.appliances.some(
+      (a) => !a.applianceName.trim() || a.powerRating <= 0
+    );
+    if (hasInvalid) {
+      toast({
+        title: 'Missing appliance details',
+        description: 'Every appliance needs a name and a wattage. Use "Set Appliance" to pick from the catalogue.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const payload = {
       name: formData.name,
       customerId: formData.customerId,
@@ -174,84 +152,10 @@ export default function CalculationsPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Appliances</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addAppliance}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Appliance
-                  </Button>
-                </div>
-                {formData.appliances.map((app) => (
-                  <div key={app.id} className="grid gap-2 md:grid-cols-7 items-end border rounded-lg p-3 bg-slate-50">
-                    <div className="md:col-span-2">
-                      <Label className="text-xs">Name</Label>
-                      <Input
-                        value={app.applianceName}
-                        onChange={(e) => updateAppliance(app.id, 'applianceName', e.target.value)}
-                        placeholder="e.g. Fridge"
-                        className="h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Qty</Label>
-                      <Input
-                        type="number"
-                        value={app.quantity}
-                        onChange={(e) => updateAppliance(app.id, 'quantity', parseInt(e.target.value) || 1)}
-                        className="h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Watts</Label>
-                      <Input
-                        type="number"
-                        value={app.powerRating}
-                        onChange={(e) => updateAppliance(app.id, 'powerRating', parseFloat(e.target.value) || 0)}
-                        className="h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Hours/Day</Label>
-                      <Input
-                        type="number"
-                        value={app.dailyHours}
-                        onChange={(e) => updateAppliance(app.id, 'dailyHours', parseFloat(e.target.value) || 0)}
-                        className="h-8"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Surge (W)</Label>
-                      <Input
-                        type="number"
-                        value={app.startingSurge || ''}
-                        onChange={(e) => updateAppliance(app.id, 'startingSurge', parseFloat(e.target.value) || undefined)}
-                        placeholder="Optional"
-                        className="h-8"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 pb-1">
-                      <input
-                        type="checkbox"
-                        checked={app.isEssential}
-                        onChange={(e) => updateAppliance(app.id, 'isEssential', e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                      <Label className="text-xs">Essential</Label>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAppliance(app.id)}
-                      disabled={formData.appliances.length === 1}
-                      className="text-red-600 h-8"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              <ApplianceBuilder
+                appliances={formData.appliances}
+                onChange={(appliances) => setFormData({ ...formData, appliances })}
+              />
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -314,12 +218,20 @@ export default function CalculationsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/dashboard/quotations?loadId=${calc.id}`}>
-                        <Button variant="ghost" size="sm">
-                          <FileText className="h-4 w-4 mr-1" />
-                          Quote
-                        </Button>
-                      </Link>
+                      <div className="flex items-center justify-end gap-1">
+                        <Link href={`/dashboard/calculations/${calc.id}`}>
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                        <Link href={`/dashboard/quotations/new?loadId=${calc.id}`}>
+                          <Button variant="ghost" size="sm">
+                            <FileText className="h-4 w-4 mr-1" />
+                            Quote
+                          </Button>
+                        </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

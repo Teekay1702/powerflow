@@ -1,32 +1,55 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Search } from 'lucide-react';
+import { AppliancePickerDialog } from './AppliancePickerDialog';
+import type { ApplianceCatalogueItem, ApplianceInput } from '@/types';
 
-export interface ApplianceInput {
+export interface ApplianceRow extends ApplianceInput {
   id: string;
-  applianceName: string;
-  quantity: number;
-  powerRating: number;
-  startingSurge?: number;
-  dailyHours: number;
-  peakHours?: number;
-  isEssential: boolean;
 }
 
 interface ApplianceBuilderProps {
-  appliances: ApplianceInput[];
-  onChange: (appliances: ApplianceInput[]) => void;
+  appliances: ApplianceRow[];
+  onChange: (appliances: ApplianceRow[]) => void;
+}
+
+function makeId() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
+function emptyRow(): ApplianceRow {
+  return {
+    id: makeId(),
+    applianceName: '',
+    quantity: 1,
+    powerRating: 0,
+    dailyHours: 4,
+    isEssential: true,
+  };
+}
+
+function applyCatalogue(row: ApplianceRow, item: ApplianceCatalogueItem): ApplianceRow {
+  const surgeMultiplier = item.startingSurgeMultiplier ?? 1.5;
+  return {
+    ...row,
+    applianceId: item.id,
+    applianceName: `${item.make} ${item.model}`,
+    powerRating: item.wattage,
+    startingSurge: Math.round(item.wattage * surgeMultiplier),
+    dailyHours: item.defaultHoursPerDay ?? row.dailyHours,
+  };
 }
 
 export function ApplianceBuilder({ appliances, onChange }: ApplianceBuilderProps) {
-  const add = () => {
-    onChange([
-      ...appliances,
-      { id: Math.random().toString(36).substr(2, 9), applianceName: '', quantity: 1, powerRating: 0, dailyHours: 4, isEssential: true },
-    ]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<string | null>(null);
+
+  const update = (id: string, field: keyof ApplianceInput, value: unknown) => {
+    onChange(appliances.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
   };
 
   const remove = (id: string) => {
@@ -34,55 +57,124 @@ export function ApplianceBuilder({ appliances, onChange }: ApplianceBuilderProps
     onChange(appliances.filter((a) => a.id !== id));
   };
 
-  const update = (id: string, field: keyof ApplianceInput, value: any) => {
-    onChange(appliances.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
+  const openPickerFor = (id: string) => {
+    setPickerTarget(id);
+    setPickerOpen(true);
+  };
+
+  const handleAdd = () => {
+    const row = emptyRow();
+    onChange([...appliances, row]);
+    openPickerFor(row.id);
+  };
+
+  const handlePick = (item: ApplianceCatalogueItem) => {
+    onChange(appliances.map((a) => (a.id === pickerTarget ? applyCatalogue(a, item) : a)));
   };
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <Label>Appliances</Label>
-        <Button type="button" variant="outline" size="sm" onClick={add}>
+        <Button type="button" variant="outline" size="sm" onClick={handleAdd}>
           <Plus className="h-4 w-4 mr-1" />
           Add Appliance
         </Button>
       </div>
+
       {appliances.map((app) => (
-        <div key={app.id} className="grid gap-2 md:grid-cols-7 items-end border rounded-lg p-3 bg-slate-50">
-          <div className="md:col-span-2">
-            <Label className="text-xs">Name</Label>
-            <Input
-              value={app.applianceName}
-              onChange={(e) => update(app.id, 'applianceName', e.target.value)}
-              placeholder="e.g. Fridge"
-              className="h-8"
-            />
+        <div key={app.id} className="border rounded-lg p-3 bg-slate-50 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <Label className="text-xs">Appliance</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openPickerFor(app.id)}
+                  className="shrink-0"
+                  title="Choose from the catalogue"
+                >
+                  <Search className="h-4 w-4 mr-1" />
+                  Set Appliance
+                </Button>
+                <Input
+                  value={app.applianceName}
+                  onChange={(e) => update(app.id, 'applianceName', e.target.value)}
+                  placeholder="e.g. LG double door fridge"
+                  className="h-8"
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => remove(app.id)}
+              disabled={appliances.length === 1}
+              className="text-red-600 h-8 shrink-0"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
-          <div>
-            <Label className="text-xs">Qty</Label>
-            <Input type="number" value={app.quantity} onChange={(e) => update(app.id, 'quantity', parseInt(e.target.value) || 1)} className="h-8" />
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div>
+              <Label className="text-xs">Qty</Label>
+              <Input
+                type="number"
+                value={app.quantity}
+                onChange={(e) => update(app.id, 'quantity', parseInt(e.target.value) || 1)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Watts</Label>
+              <Input
+                type="number"
+                value={app.powerRating}
+                onChange={(e) => update(app.id, 'powerRating', parseFloat(e.target.value) || 0)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Hours/Day</Label>
+              <Input
+                type="number"
+                value={app.dailyHours}
+                onChange={(e) => update(app.id, 'dailyHours', parseFloat(e.target.value) || 0)}
+                className="h-8"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Surge (W)</Label>
+              <Input
+                type="number"
+                value={app.startingSurge ?? ''}
+                onChange={(e) => update(app.id, 'startingSurge', parseFloat(e.target.value) || undefined)}
+                placeholder="Optional"
+                className="h-8"
+              />
+            </div>
+            <div className="flex items-end gap-2 pb-1">
+              <input
+                type="checkbox"
+                checked={app.isEssential}
+                onChange={(e) => update(app.id, 'isEssential', e.target.checked)}
+                className="h-4 w-4"
+              />
+              <Label className="text-xs">Essential</Label>
+            </div>
           </div>
-          <div>
-            <Label className="text-xs">Watts</Label>
-            <Input type="number" value={app.powerRating} onChange={(e) => update(app.id, 'powerRating', parseFloat(e.target.value) || 0)} className="h-8" />
-          </div>
-          <div>
-            <Label className="text-xs">Hours/Day</Label>
-            <Input type="number" value={app.dailyHours} onChange={(e) => update(app.id, 'dailyHours', parseFloat(e.target.value) || 0)} className="h-8" />
-          </div>
-          <div>
-            <Label className="text-xs">Surge (W)</Label>
-            <Input type="number" value={app.startingSurge || ''} onChange={(e) => update(app.id, 'startingSurge', parseFloat(e.target.value) || undefined)} placeholder="Optional" className="h-8" />
-          </div>
-          <div className="flex items-center gap-2 pb-1">
-            <input type="checkbox" checked={app.isEssential} onChange={(e) => update(app.id, 'isEssential', e.target.checked)} className="h-4 w-4" />
-            <Label className="text-xs">Essential</Label>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={() => remove(app.id)} disabled={appliances.length === 1} className="text-red-600 h-8">
-            <Trash2 className="h-4 w-4" />
-          </Button>
         </div>
       ))}
+
+      <AppliancePickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onSelect={handlePick}
+      />
     </div>
   );
 }
